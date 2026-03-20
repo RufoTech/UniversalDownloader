@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"regexp"
 	"sort"
 	"strconv"
@@ -162,7 +163,10 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 
 	title := sanitizeFilename(v.Title)
 
-	if formatParam == "mp3" {
+	// Fallback to yt-dlp binary if we want to use that logic.
+	// But it seems yt-dlp is not installed globally on this machine.
+	// Let's use the pure Go library (github.com/kkdai/youtube/v2) to download the stream directly.
+	if isAudio {
 		audioFmt, ok := pickBestAudioFormat(v)
 		if !ok {
 			writeJSONError(w, http.StatusInternalServerError, "No audio formats available")
@@ -185,7 +189,6 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	qualityID := r.URL.Query().Get("quality_id")
 	var chosen youtube.Format
 	if qualityID != "" {
 		itag, err := strconv.Atoi(qualityID)
@@ -205,6 +208,17 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// For video formats, we must return the stream directly
+	// Get the direct URL instead of piping it through our server if possible
+	streamURL, err := ytClient.GetStreamURL(v, &chosen)
+	if err == nil && streamURL != "" {
+		// Redirect the client to download directly from YouTube's CDN
+		// This is the fastest and most stable method. It bypasses our server entirely.
+		http.Redirect(w, r, streamURL, http.StatusTemporaryRedirect)
+		return
+	}
+
+	// Fallback to proxy stream if GetStreamURL fails
 	stream, size, err := ytClient.GetStream(v, &chosen)
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, err.Error())
