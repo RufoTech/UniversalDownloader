@@ -11,7 +11,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ detail: "Link daxil edilməyib" }, { status: 400 });
   }
 
-  const cleanUrl = url.split("&")[0];
+  // Basic sanitization, but keep important query params for TikTok
+  let cleanUrl = url;
+  if (url.includes("tiktok.com")) {
+    // If it's a tiktok photo link, we might need to change it to a video link format for yt-dlp to recognize it
+    // TikTok sometimes uses /photo/ instead of /video/ for image posts
+    cleanUrl = cleanUrl.replace("/photo/", "/video/");
+  } else {
+    cleanUrl = url.split("&")[0];
+  }
 
   try {
     // Check if yt-dlp is available by trying to get version first (debugging step)
@@ -62,7 +70,17 @@ export async function GET(req: NextRequest) {
       
       // Get best thumbnail for image download
       let bestThumbnail = null;
-      if (info.thumbnails && info.thumbnails.length > 0) {
+      
+      // If it's TikTok, prioritize standard images/thumbnails
+      if (info.extractor === "tiktok" || cleanUrl.includes("tiktok.com")) {
+        // TikTok sometimes returns specific high-res image thumbnails for photo slides
+        const imageFormats = formats.filter((f: any) => f.ext === "jpg" || f.ext === "png" || f.ext === "webp" || f.vcodec === "none");
+        if (imageFormats.length > 0) {
+          bestThumbnail = imageFormats[imageFormats.length - 1].url;
+        }
+      }
+      
+      if (!bestThumbnail && info.thumbnails && info.thumbnails.length > 0) {
         // usually the last one is the highest resolution
         bestThumbnail = info.thumbnails[info.thumbnails.length - 1].url;
       }

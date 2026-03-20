@@ -28,7 +28,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ detail: "Link daxil edilməyib" }, { status: 400 });
   }
 
-  const cleanUrl = url.split("&")[0];
+  let cleanUrl = url;
+  if (url.includes("tiktok.com")) {
+    cleanUrl = cleanUrl.replace("/photo/", "/video/");
+  } else {
+    cleanUrl = url.split("&")[0];
+  }
   const isAudio = format === "mp3";
 
   try {
