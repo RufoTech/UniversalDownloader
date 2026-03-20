@@ -210,16 +210,6 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// For video formats, we must return the stream directly
-	// Get the direct URL instead of piping it through our server if possible
-	streamURL, err := ytClient.GetStreamURL(v, &chosen)
-	if err == nil && streamURL != "" {
-		// Redirect the client to download directly from YouTube's CDN
-		// This is the fastest and most stable method. It bypasses our server entirely.
-		http.Redirect(w, r, streamURL, http.StatusTemporaryRedirect)
-		return
-	}
-
 	// Fallback to proxy stream if GetStreamURL fails
 	stream, size, err := ytClient.GetStream(v, &chosen)
 	if err != nil {
