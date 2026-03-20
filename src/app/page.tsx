@@ -143,7 +143,7 @@ export default function Home() {
                 {isLoading ? (
                   <FaSpinner className="animate-spin mr-2 text-xl" />
                 ) : (
-                  <span className="material-symbols-outlined mr-2">search</span>
+                  <span className="material-symbols-outlined mr-2">sesarch</span>
                 )}
                 {isLoading ? "Axtarılır..." : "Start"}
               </button>
