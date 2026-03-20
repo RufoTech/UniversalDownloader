@@ -52,7 +52,7 @@ export default function Home() {
     lastFetchedUrl.current = url;
 
     try {
-      const res = await fetch(`http://localhost:8000/api/info?url=${encodeURIComponent(url)}`);
+      const res = await fetch(`http://localhost:8001/api/info?url=${encodeURIComponent(url)}`);
       const data = await res.json();
       
       if (!res.ok) throw new Error(data.detail || "Failed to fetch info");
@@ -74,7 +74,7 @@ export default function Home() {
   };
 
   const handleDownload = (format: "mp4" | "mp3", qualityId?: string) => {
-    let downloadUrl = `http://localhost:8000/api/download?url=${encodeURIComponent(url)}&format=${format}`;
+    let downloadUrl = `http://localhost:8001/api/download?url=${encodeURIComponent(url)}&format=${format}`;
     if (qualityId) {
       downloadUrl += `&quality_id=${qualityId}`;
     }
