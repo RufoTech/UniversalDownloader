@@ -18,8 +18,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+import unicodedata
+
+import shutil
+
+# Check if ffmpeg is available
+FFMPEG_AVAILABLE = shutil.which("ffmpeg") is not None
+if not FFMPEG_AVAILABLE:
+    print("WARNING: ffmpeg not found. High-quality video merging will not work.")
+
 def sanitize_title(title: str) -> str:
-    return re.sub(r'[^\w\s-]', '', title).strip() or 'video'
+    # Manual mapping for common non-ASCII characters that don't decompose well
+    replacements = {
+        'ə': 'e', 'Ə': 'E',
+        'ı': 'i', 'İ': 'I',
+        'ö': 'o', 'Ö': 'O',
+        'ü': 'u', 'Ü': 'U',
+        'ş': 's', 'Ş': 'S',
+        'ç': 'c', 'Ç': 'C',
+        'ğ': 'g', 'Ğ': 'G'
+    }
+    for old, new in replacements.items():
+        title = title.replace(old, new)
+        
+    # Normalize unicode to decompose special characters
+    normalized = unicodedata.normalize('NFKD', title)
+    # Filter to keep only ASCII letters, numbers, spaces, and dashes
+    ascii_title = normalized.encode('ascii', 'ignore').decode('ascii')
+    # Final cleanup of non-word characters
+    return re.sub(r'[^\w\s-]', '', ascii_title).strip() or 'video'
 
 @app.get("/api/info")
 async def get_info(url: str):
@@ -92,9 +119,22 @@ async def download_video(url: str, format: str = "mp4", quality_id: str = None):
         format_flag = "-x --audio-format mp3 -f bestaudio"
     else:
         if quality_id:
-            format_flag = f"-f {quality_id}+bestaudio[ext=m4a]/best[ext=mp4]/best"
+            if FFMPEG_AVAILABLE:
+                format_flag = f"-f {quality_id}+bestaudio[ext=m4a]/best[ext=mp4]/best"
+            else:
+                # If ffmpeg is missing, we can't merge. 
+                # Try to download the requested quality, but it might not have audio.
+                # Better fallback: use best single file that matches quality if possible, or just best overall single file.
+                format_flag = f"-f {quality_id}/best[ext=mp4]/best"
         else:
             format_flag = "-f best[ext=mp4]/best"
+
+    # If ffmpeg is missing and we're doing audio extraction, it will fail.
+    if is_audio and not FFMPEG_AVAILABLE:
+        # Fallback for audio: just get the best audio file directly without conversion
+        format_flag = "-f bestaudio"
+        extension = "m4a" # common bestaudio extension
+        mime_type = "audio/mp4"
 
     command = f"yt-dlp {format_flag} -o - \"{clean_url}\""
 
