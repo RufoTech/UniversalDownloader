@@ -79,12 +79,21 @@ export default function Home() {
       downloadUrl += `&quality_id=${qualityId}`;
     }
     
+    // Instead of using fetch (which loads the entire file into RAM first),
+    // we use a hidden iframe/anchor to let the browser handle the stream directly,
+    // avoiding "couldn't finish download" memory issues with large files like 1080p.
     const a = document.createElement("a");
     a.href = downloadUrl;
-    a.download = ""; 
+    // We can't specify filename securely cross-origin here, so we let the backend's Content-Disposition handle it
+    a.setAttribute("download", ""); 
+    a.style.display = "none";
     document.body.appendChild(a);
     a.click();
-    a.remove();
+    
+    // Small delay before removing to ensure click registers
+    setTimeout(() => {
+      document.body.removeChild(a);
+    }, 100);
   };
 
   return (
