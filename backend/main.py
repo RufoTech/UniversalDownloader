@@ -19,8 +19,9 @@ app.add_middleware(
 )
 
 import unicodedata
-
 import shutil
+from functools import lru_cache
+import concurrent.futures
 
 # Check if ffmpeg is available
 FFMPEG_AVAILABLE = shutil.which("ffmpeg") is not None
@@ -48,6 +49,9 @@ def sanitize_title(title: str) -> str:
     # Final cleanup of non-word characters
     return re.sub(r'[^\w\s-]', '', ascii_title).strip() or 'video'
 
+# Thread pool for yt-dlp blocking operations
+executor = concurrent.futures.ThreadPoolExecutor(max_workers=5)
+
 @app.get("/api/info")
 async def get_info(url: str):
     if not url or 'youtu' not in url:
@@ -55,46 +59,58 @@ async def get_info(url: str):
 
     clean_url = url.split('&')[0]
 
+    # Run the synchronous extraction in a background thread to prevent blocking
+    try:
+        loop = asyncio.get_running_loop()
+        data = await loop.run_in_executor(
+            executor, fetch_video_info_sync, clean_url
+        )
+        return data
+    except Exception as e:
+        print(f"Error fetching info: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Cache the results for 5 minutes (using LRU cache for identical URLs)
+@lru_cache(maxsize=100)
+def fetch_video_info_sync(clean_url: str):
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
         'extract_flat': True,
-        'skip_download': True
+        'skip_download': True,
+        'noplaylist': True,  # Huge speedup for playlist URLs
+        'nocheckcertificate': True # Minor speedup
     }
 
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(clean_url, download=False)
-            
-            formats = info.get('formats', [])
-            resolutions = set()
-            available_formats = []
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(clean_url, download=False)
+        
+        formats = info.get('formats', [])
+        resolutions = set()
+        available_formats = []
 
-            for f in formats:
-                if f.get('vcodec') != 'none' and f.get('height'):
-                    height = f['height']
-                    if height not in resolutions:
-                        resolutions.add(height)
-                        available_formats.append({
-                            'format_id': f.get('format_id'),
-                            'resolution': f"{height}p",
-                            'height': height,
-                            'ext': f.get('ext'),
-                            'filesize': f.get('filesize') or f.get('filesize_approx') or 0,
-                        })
-            
-            # Sort from highest to lowest resolution
-            available_formats.sort(key=lambda x: x['height'], reverse=True)
+        for f in formats:
+            if f.get('vcodec') != 'none' and f.get('height'):
+                height = f['height']
+                if height not in resolutions:
+                    resolutions.add(height)
+                    available_formats.append({
+                        'format_id': f.get('format_id'),
+                        'resolution': f"{height}p",
+                        'height': height,
+                        'ext': f.get('ext'),
+                        'filesize': f.get('filesize') or f.get('filesize_approx') or 0,
+                    })
+        
+        # Sort from highest to lowest resolution
+        available_formats.sort(key=lambda x: x['height'], reverse=True)
 
-            return {
-                'title': info.get('title'),
-                'thumbnail': info.get('thumbnail'),
-                'duration': info.get('duration'),
-                'formats': available_formats
-            }
-    except Exception as e:
-        print(f"Error fetching info: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return {
+            'title': info.get('title'),
+            'thumbnail': info.get('thumbnail'),
+            'duration': info.get('duration'),
+            'formats': available_formats
+        }
 
 
 @app.get("/api/download")

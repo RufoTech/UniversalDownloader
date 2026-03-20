@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FaYoutube, FaTiktok, FaInstagram, FaFacebook, FaVk, FaSpinner } from "react-icons/fa";
 import { SiOpenai } from "react-icons/si";
 
@@ -21,14 +21,19 @@ export default function Home() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
+  
+  // Track the last fetched URL to prevent duplicate requests
+  const lastFetchedUrl = useRef("");
 
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return 'Unknown size';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
+  useEffect(() => {
+    // Automatically fetch when a valid YouTube URL is pasted
+    if (url && (url.includes("youtube.com") || url.includes("youtu.be")) && url !== lastFetchedUrl.current) {
+      const timer = setTimeout(() => {
+        fetchVideoInfo();
+      }, 500); // 500ms debounce
+      return () => clearTimeout(timer);
+    }
+  }, [url]);
 
   const fetchVideoInfo = async () => {
     if (!url) {
@@ -44,6 +49,7 @@ export default function Home() {
     setError("");
     setIsLoading(true);
     setVideoInfo(null);
+    lastFetchedUrl.current = url;
 
     try {
       const res = await fetch(`http://localhost:8000/api/info?url=${encodeURIComponent(url)}`);
@@ -57,6 +63,14 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return 'Unknown size';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   const handleDownload = (format: "mp4" | "mp3", qualityId?: string) => {
