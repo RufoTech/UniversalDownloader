@@ -79,21 +79,9 @@ export default function Home() {
       downloadUrl += `&quality_id=${qualityId}`;
     }
     
-    // Instead of using fetch (which loads the entire file into RAM first),
-    // we use a hidden iframe/anchor to let the browser handle the stream directly,
-    // avoiding "couldn't finish download" memory issues with large files like 1080p.
-    const a = document.createElement("a");
-    a.href = downloadUrl;
-    // We can't specify filename securely cross-origin here, so we let the backend's Content-Disposition handle it
-    a.setAttribute("download", ""); 
-    a.style.display = "none";
-    document.body.appendChild(a);
-    a.click();
-    
-    // Small delay before removing to ensure click registers
-    setTimeout(() => {
-      document.body.removeChild(a);
-    }, 100);
+    // Yükləməni yeni tab-da açırıq ki, brauzer tam olaraq yükləmə kimi emal etsin 
+    // və 'couldn't finish download' xətası verməsin.
+    window.open(downloadUrl, "_blank");
   };
 
   return (

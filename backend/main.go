@@ -175,7 +175,7 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 		}
 		defer stream.Close()
 
-		w.Header().Set("Content-Type", "audio/mp4")
+		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.m4a"`, title))
 		if size > 0 {
 			w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
@@ -212,7 +212,7 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer stream.Close()
 
-	w.Header().Set("Content-Type", "video/mp4")
+	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.mp4"`, title))
 	if size > 0 {
 		w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
