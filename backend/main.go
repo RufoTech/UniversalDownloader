@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os/exec"
 	"regexp"
 	"sort"
 	"strconv"
@@ -162,6 +161,9 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	title := sanitizeFilename(v.Title)
+
+	isAudio := formatParam == "mp3"
+	qualityID := r.URL.Query().Get("quality_id")
 
 	// Fallback to yt-dlp binary if we want to use that logic.
 	// But it seems yt-dlp is not installed globally on this machine.
