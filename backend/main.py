@@ -1,0 +1,125 @@
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
+import yt_dlp
+import asyncio
+import subprocess
+import json
+import re
+
+app = FastAPI()
+
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Adjust this in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+def sanitize_title(title: str) -> str:
+    return re.sub(r'[^\w\s-]', '', title).strip() or 'video'
+
+@app.get("/api/info")
+async def get_info(url: str):
+    if not url or 'youtu' not in url:
+        raise HTTPException(status_code=400, detail="Invalid YouTube URL")
+
+    clean_url = url.split('&')[0]
+
+    ydl_opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'extract_flat': True,
+        'skip_download': True
+    }
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(clean_url, download=False)
+            
+            formats = info.get('formats', [])
+            resolutions = set()
+            available_formats = []
+
+            for f in formats:
+                if f.get('vcodec') != 'none' and f.get('height'):
+                    height = f['height']
+                    if height not in resolutions:
+                        resolutions.add(height)
+                        available_formats.append({
+                            'format_id': f.get('format_id'),
+                            'resolution': f"{height}p",
+                            'height': height,
+                            'ext': f.get('ext'),
+                            'filesize': f.get('filesize') or f.get('filesize_approx') or 0,
+                        })
+            
+            # Sort from highest to lowest resolution
+            available_formats.sort(key=lambda x: x['height'], reverse=True)
+
+            return {
+                'title': info.get('title'),
+                'thumbnail': info.get('thumbnail'),
+                'duration': info.get('duration'),
+                'formats': available_formats
+            }
+    except Exception as e:
+        print(f"Error fetching info: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/download")
+async def download_video(url: str, format: str = "mp4", quality_id: str = None):
+    if not url or 'youtu' not in url:
+        raise HTTPException(status_code=400, detail="Invalid YouTube URL")
+
+    clean_url = url.split('&')[0]
+    is_audio = format == "mp3"
+    
+    # Get basic info for filename
+    ydl_opts = {'quiet': True, 'extract_flat': True, 'skip_download': True}
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(clean_url, download=False)
+        title = sanitize_title(info.get('title', 'video'))
+
+    mime_type = "audio/mpeg" if is_audio else "video/mp4"
+    extension = "mp3" if is_audio else "mp4"
+
+    # Construct yt-dlp command
+    if is_audio:
+        format_flag = "-x --audio-format mp3 -f bestaudio"
+    else:
+        if quality_id:
+            format_flag = f"-f {quality_id}+bestaudio[ext=m4a]/best[ext=mp4]/best"
+        else:
+            format_flag = "-f best[ext=mp4]/best"
+
+    command = f"yt-dlp {format_flag} -o - \"{clean_url}\""
+
+    # Use subprocess to stream output directly
+    process = subprocess.Popen(
+        command,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+
+    async def generate():
+        try:
+            while True:
+                chunk = process.stdout.read(8192)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            process.stdout.close()
+            process.kill()
+
+    headers = {
+        "Content-Disposition": f"attachment; filename=\"{title}.{extension}\"",
+        "Content-Type": mime_type,
+    }
+
+    return StreamingResponse(generate(), headers=headers)
