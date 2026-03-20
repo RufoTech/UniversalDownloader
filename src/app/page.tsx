@@ -1,89 +1,9 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
-import { FaYoutube, FaTiktok, FaInstagram, FaFacebook, FaVk, FaSpinner } from "react-icons/fa";
+import Link from "next/link";
+import { FaYoutube, FaTiktok, FaInstagram, FaFacebook, FaVk } from "react-icons/fa";
 import { SiOpenai } from "react-icons/si";
 
-interface VideoInfo {
-  title: string;
-  thumbnail: string;
-  duration: number;
-  formats: {
-    format_id: string;
-    resolution: string;
-    height: number;
-    ext: string;
-    filesize: number;
-  }[];
-}
-
 export default function Home() {
-  const [url, setUrl] = useState("");
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
-  
-  // Track the last fetched URL to prevent duplicate requests
-  const lastFetchedUrl = useRef("");
-
-  useEffect(() => {
-    // Automatically fetch when a valid YouTube URL is pasted
-    if (url && (url.includes("youtube.com") || url.includes("youtu.be")) && url !== lastFetchedUrl.current) {
-      const timer = setTimeout(() => {
-        fetchVideoInfo();
-      }, 500); // 500ms debounce
-      return () => clearTimeout(timer);
-    }
-  }, [url]);
-
-  const fetchVideoInfo = async () => {
-    if (!url) {
-      setError("Zəhmət olmasa bir link daxil edin");
-      return;
-    }
-    
-    if (!url.includes("youtube.com") && !url.includes("youtu.be")) {
-      setError("Hal-hazırda yalnız YouTube linkləri dəstəklənir");
-      return;
-    }
-    
-    setError("");
-    setIsLoading(true);
-    setVideoInfo(null);
-    lastFetchedUrl.current = url;
-
-    try {
-      // Dəyişiklik: Artıq Go serverinə (8001) yox, Next.js daxili API-yə müraciət edir
-      const res = await fetch(`/api/info?url=${encodeURIComponent(url)}`);
-      const data = await res.json();
-      
-      if (!res.ok) throw new Error(data.detail || "Failed to fetch info");
-      
-      setVideoInfo(data);
-    } catch (err: any) {
-      setError(err.message || "Video məlumatları alına bilmədi");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const formatBytes = (bytes: number) => {
-    if (!bytes || bytes === 0) return 'Unknown size';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const handleDownload = (format: "mp4" | "mp3", qualityId?: string) => {
-    // Dəyişiklik: Next.js daxili yükləmə API-si istifadə olunur
-    let downloadUrl = `/api/download?url=${encodeURIComponent(url)}&format=${format}`;
-    if (qualityId) {
-      downloadUrl += `&quality_id=${qualityId}`;
-    }
-    
-    window.open(downloadUrl, "_blank");
-  };
-
   return (
     <>
       {/* TopNavBar */}
@@ -99,10 +19,10 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-4">
             <button className="hidden md:block px-6 py-2 rounded-xl text-sm font-bold text-[#dee5ff]/70 hover:text-[#dee5ff] transition-all">
-              Sign In
+              Daxil ol
             </button>
             <button className="signature-pulse px-6 py-2.5 rounded-xl text-sm font-bold text-on-primary shadow-lg hover:scale-105 transition-all duration-300 active:scale-95">
-              Get Started
+              Başla
             </button>
           </div>
         </div>
@@ -112,120 +32,53 @@ export default function Home() {
         {/* Hero Section */}
         <section className="max-w-7xl mx-auto text-center flex flex-col items-center">
           <h1 className="font-manrope text-5xl md:text-7xl font-extrabold tracking-tight mb-6 max-w-4xl text-on-surface">
-            Download Videos from <span className="text-primary">Any Platform</span> Instantly
+            İstədiyiniz Platformadan <span className="text-primary">Anında</span> Yükləyin
           </h1>
           <p className="text-on-surface-variant text-lg md:text-xl max-w-2xl mb-12 font-body">
-            Paste a link and download in MP3 or MP4 in seconds. Experience the alchemy of high-speed media transformation.
+            Sürətli, reklamsız və limitsiz. Yükləməyə başlamaq üçün aşağıdakı platformalardan birini seçin.
           </p>
 
-          {/* URL Input Area */}
-          <div className="w-full max-w-3xl glass-panel p-2 rounded-lg ghost-border shadow-2xl mb-2 flex flex-col md:flex-row gap-2">
-            <div className="flex-1 flex items-center px-6 py-4 bg-surface-container-lowest rounded-md">
-              <span className="material-symbols-outlined text-tertiary mr-4">link</span>
-              <input
-                className="bg-transparent border-none text-on-surface placeholder:text-on-surface-variant/40 w-full focus:ring-0 focus:outline-none text-body-md"
-                placeholder="Paste YouTube link here"
-                type="text"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && fetchVideoInfo()}
-              />
-            </div>
-            <div className="flex gap-2 p-1">
-              <button 
-                onClick={fetchVideoInfo}
-                disabled={isLoading}
-                className="signature-pulse flex items-center justify-center px-8 py-4 rounded-xl font-bold text-on-primary hover:scale-102 transition-all group whitespace-nowrap disabled:opacity-70 disabled:hover:scale-100"
-              >
-                {isLoading ? (
-                  <FaSpinner className="animate-spin mr-2 text-xl" />
-                ) : (
-                  <span className="material-symbols-outlined mr-2">search</span>
-                )}
-                {isLoading ? "Axtarılır..." : "Start"}
-              </button>
-            </div>
-          </div>
-          {error && <p className="text-error font-medium mb-4 h-6">{error}</p>}
-          {!error && !videoInfo && <div className="h-6 mb-4"></div>}
-
-          {/* Video Preview Area */}
-          {videoInfo && (
-            <div className="w-full max-w-3xl glass-panel p-6 rounded-lg ghost-border shadow-2xl mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="flex flex-col md:flex-row gap-6">
-                <div className="w-full md:w-1/2 aspect-video relative rounded-lg overflow-hidden flex-shrink-0 border border-outline-variant/30">
-                  <img 
-                    src={videoInfo.thumbnail} 
-                    alt={videoInfo.title}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded text-xs font-mono">
-                    {Math.floor(videoInfo.duration / 60)}:{(videoInfo.duration % 60).toString().padStart(2, '0')}
-                  </div>
-                </div>
-                
-                <div className="flex flex-col flex-1 text-left">
-                  <h3 className="font-bold text-lg line-clamp-2 mb-4 text-on-surface" title={videoInfo.title}>
-                    {videoInfo.title}
-                  </h3>
-                  
-                  <div className="flex flex-col gap-2 mb-4">
-                    <h4 className="text-sm font-semibold text-on-surface-variant uppercase tracking-wider">Video Yüklə (MP4)</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {videoInfo.formats.slice(0, 4).map((format) => (
-                        <button
-                          key={format.format_id}
-                          onClick={() => handleDownload("mp4", format.format_id)}
-                          className="bg-primary/10 hover:bg-primary/20 border border-primary/20 px-3 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-2"
-                        >
-                          <span className="font-bold text-primary">{format.resolution}</span>
-                          <span className="text-xs text-on-surface-variant/70">{formatBytes(format.filesize)}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-2 mt-auto">
-                    <h4 className="text-sm font-semibold text-on-surface-variant uppercase tracking-wider">Audio Yüklə</h4>
-                    <button 
-                      onClick={() => handleDownload("mp3")}
-                      className="bg-secondary/10 hover:bg-secondary/20 border border-secondary/20 px-4 py-2 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 w-full sm:w-auto self-start"
-                    >
-                      <span className="material-symbols-outlined text-[18px] text-secondary">music_note</span>
-                      <span className="font-bold text-secondary">MP3 Formatında Yüklə</span>
-                    </button>
-                  </div>
-                </div>
+          {/* Social Platforms Grid (Main interaction point) */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 w-full max-w-5xl mt-8">
+            <Link href="/downloader/youtube" className="bg-surface-container hover:bg-surface-container-high p-8 rounded-xl flex flex-col items-center gap-4 transition-all group hover:-translate-y-2 hover:shadow-xl border border-transparent hover:border-red-500/30">
+              <FaYoutube className="text-5xl text-on-surface-variant group-hover:text-red-500 transition-colors" />
+              <div className="flex flex-col items-center">
+                <span className="font-bold text-lg tracking-wide">YouTube</span>
+                <span className="text-xs text-on-surface-variant mt-1 text-center">Video (MP4) & Səs (MP3)</span>
               </div>
-            </div>
-          )}
-
-          {/* Social Platforms Pulse */}
-          <div className="flex flex-wrap justify-center gap-8 md:gap-16 opacity-60 grayscale hover:grayscale-0 transition-all duration-700">
-            <div className="flex flex-col items-center gap-2">
-              <FaYoutube className="text-4xl" />
-              <span className="text-[10px] font-bold tracking-widest uppercase opacity-50">YouTube</span>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <FaTiktok className="text-4xl" />
-              <span className="text-[10px] font-bold tracking-widest uppercase opacity-50">TikTok</span>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <FaInstagram className="text-4xl" />
-              <span className="text-[10px] font-bold tracking-widest uppercase opacity-50">Instagram</span>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <FaFacebook className="text-4xl" />
-              <span className="text-[10px] font-bold tracking-widest uppercase opacity-50">Facebook</span>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <FaVk className="text-4xl" />
-              <span className="text-[10px] font-bold tracking-widest uppercase opacity-50">VK</span>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <SiOpenai className="text-4xl" />
-              <span className="text-[10px] font-bold tracking-widest uppercase opacity-50">Sora</span>
-            </div>
+            </Link>
+            
+            <Link href="/downloader/tiktok" className="bg-surface-container hover:bg-surface-container-high p-8 rounded-xl flex flex-col items-center gap-4 transition-all group hover:-translate-y-2 hover:shadow-xl border border-transparent hover:border-gray-500/30">
+              <FaTiktok className="text-5xl text-on-surface-variant group-hover:text-white transition-colors" />
+              <div className="flex flex-col items-center">
+                <span className="font-bold text-lg tracking-wide">TikTok</span>
+                <span className="text-xs text-on-surface-variant mt-1 text-center">Video, Səs & Şəkil</span>
+              </div>
+            </Link>
+            
+            <Link href="/downloader/instagram" className="bg-surface-container hover:bg-surface-container-high p-8 rounded-xl flex flex-col items-center gap-4 transition-all group hover:-translate-y-2 hover:shadow-xl border border-transparent hover:border-pink-500/30">
+              <FaInstagram className="text-5xl text-on-surface-variant group-hover:text-pink-500 transition-colors" />
+              <div className="flex flex-col items-center">
+                <span className="font-bold text-lg tracking-wide">Instagram</span>
+                <span className="text-xs text-on-surface-variant mt-1 text-center">Video, Reels, Story & Şəkil</span>
+              </div>
+            </Link>
+            
+            <Link href="/downloader/facebook" className="bg-surface-container hover:bg-surface-container-high p-8 rounded-xl flex flex-col items-center gap-4 transition-all group hover:-translate-y-2 hover:shadow-xl border border-transparent hover:border-blue-600/30">
+              <FaFacebook className="text-5xl text-on-surface-variant group-hover:text-blue-600 transition-colors" />
+              <div className="flex flex-col items-center">
+                <span className="font-bold text-lg tracking-wide">Facebook</span>
+                <span className="text-xs text-on-surface-variant mt-1 text-center">Video & Şəkil</span>
+              </div>
+            </Link>
+            
+            <Link href="/downloader/vk" className="bg-surface-container hover:bg-surface-container-high p-8 rounded-xl flex flex-col items-center gap-4 transition-all group hover:-translate-y-2 hover:shadow-xl border border-transparent hover:border-blue-400/30">
+              <FaVk className="text-5xl text-on-surface-variant group-hover:text-blue-400 transition-colors" />
+              <div className="flex flex-col items-center">
+                <span className="font-bold text-lg tracking-wide">VK</span>
+                <span className="text-xs text-on-surface-variant mt-1 text-center">Video & Şəkil</span>
+              </div>
+            </Link>
           </div>
         </section>
 

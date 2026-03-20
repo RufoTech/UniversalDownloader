@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "child_process";
 
-// Helper function to sanitize titles for filenames
 function sanitizeFilename(title: string) {
-  // Basic transliteration
   const replacements: Record<string, string> = {
     'ə': 'e', 'Ə': 'E', 'ı': 'i', 'İ': 'I',
     'ö': 'o', 'Ö': 'O', 'ü': 'u', 'Ü': 'U',
@@ -16,7 +14,6 @@ function sanitizeFilename(title: string) {
     cleanTitle = cleanTitle.replace(new RegExp(key, 'g'), value);
   }
 
-  // Remove non-alphanumeric characters
   cleanTitle = cleanTitle.replace(/[^\w\s-]/gi, '').trim();
   return cleanTitle || "video";
 }
@@ -25,20 +22,19 @@ export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get("url");
   const format = req.nextUrl.searchParams.get("format") || "mp4";
   const qualityId = req.nextUrl.searchParams.get("quality_id");
+  const itemId = req.nextUrl.searchParams.get("item_id"); // Used if downloading a specific item from a playlist/carousel
 
-  if (!url || (!url.includes("youtube.com") && !url.includes("youtu.be"))) {
-    return NextResponse.json({ detail: "Invalid YouTube URL" }, { status: 400 });
+  if (!url) {
+    return NextResponse.json({ detail: "Link daxil edilməyib" }, { status: 400 });
   }
 
   const cleanUrl = url.split("&")[0];
   const isAudio = format === "mp3";
 
   try {
-    // 1. First get the title to set the filename
     const getTitleCmd = spawn("yt-dlp", ["--print", "title", cleanUrl]);
     let rawTitle = "video";
     
-    // We'll wrap this in a quick promise to wait for the title
     await new Promise<void>((resolve) => {
       getTitleCmd.stdout.on("data", (data) => {
         rawTitle = data.toString().trim();
@@ -48,7 +44,6 @@ export async function GET(req: NextRequest) {
 
     const title = sanitizeFilename(rawTitle);
 
-    // 2. Set up the download format flags
     let formatFlag = "";
     let ext = "mp4";
     let mimeType = "video/mp4";
@@ -65,10 +60,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 3. Create the download process streaming to stdout
-    const downloadCmd = spawn("yt-dlp", ["-f", formatFlag, "-o", "-", cleanUrl]);
+    const args = ["-f", formatFlag, "-o", "-"];
+    if (itemId && itemId !== "undefined") {
+      // Sometimes we can use --match-filter or similar if we want a specific ID, 
+      // but for basic usage we'll just download the URL. If it's a specific photo, 
+      // we might handle that via proxy-image anyway.
+    }
+    args.push(cleanUrl);
 
-    // 4. Create a ReadableStream from the spawned process stdout
+    const downloadCmd = spawn("yt-dlp", args);
+
     const stream = new ReadableStream({
       start(controller) {
         downloadCmd.stdout.on("data", (chunk) => {
@@ -93,7 +94,6 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // 5. Return the stream directly to the client with appropriate headers
     return new NextResponse(stream, {
       headers: {
         "Content-Type": mimeType,
@@ -103,6 +103,6 @@ export async function GET(req: NextRequest) {
 
   } catch (error: any) {
     console.error("Download error:", error);
-    return NextResponse.json({ detail: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({ detail: "Daxili Server Xətası" }, { status: 500 });
   }
 }
