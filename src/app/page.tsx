@@ -52,7 +52,8 @@ export default function Home() {
     lastFetchedUrl.current = url;
 
     try {
-      const res = await fetch(`http://localhost:8001/api/info?url=${encodeURIComponent(url)}`);
+      // Dəyişiklik: Artıq Go serverinə (8001) yox, Next.js daxili API-yə müraciət edir
+      const res = await fetch(`/api/info?url=${encodeURIComponent(url)}`);
       const data = await res.json();
       
       if (!res.ok) throw new Error(data.detail || "Failed to fetch info");
@@ -66,7 +67,7 @@ export default function Home() {
   };
 
   const formatBytes = (bytes: number) => {
-    if (bytes === 0) return 'Unknown size';
+    if (!bytes || bytes === 0) return 'Unknown size';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -74,13 +75,12 @@ export default function Home() {
   };
 
   const handleDownload = (format: "mp4" | "mp3", qualityId?: string) => {
-    let downloadUrl = `http://localhost:8001/api/download?url=${encodeURIComponent(url)}&format=${format}`;
+    // Dəyişiklik: Next.js daxili yükləmə API-si istifadə olunur
+    let downloadUrl = `/api/download?url=${encodeURIComponent(url)}&format=${format}`;
     if (qualityId) {
       downloadUrl += `&quality_id=${qualityId}`;
     }
     
-    // Yükləməni yeni tab-da açırıq ki, brauzer tam olaraq yükləmə kimi emal etsin 
-    // və 'couldn't finish download' xətası verməsin.
     window.open(downloadUrl, "_blank");
   };
 
@@ -140,7 +140,7 @@ export default function Home() {
                 {isLoading ? (
                   <FaSpinner className="animate-spin mr-2 text-xl" />
                 ) : (
-                  <span className="material-symbols-outlined mr-2">sesarch</span>
+                  <span className="material-symbols-outlined mr-2">search</span>
                 )}
                 {isLoading ? "Axtarılır..." : "Start"}
               </button>
